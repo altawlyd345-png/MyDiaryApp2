@@ -35,10 +35,30 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git zip unzip autoconf automake libtool pkg-config \
             zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
-      - name: Check the font is there (needed for joined Arabic + Latin)
+      - name: Make sure the font is there (needed for joined Arabic + Latin)
         run: |
+          f="${{ steps.loc.outputs.dir }}/fonts/DejaVuSans.ttf"
+          if [ ! -f "$f" ]; then
+            echo "::warning::$f was not uploaded - taking DejaVu from the system instead"
+            sudo apt-get install -y fonts-dejavu-core
+            mkdir -p "${{ steps.loc.outputs.dir }}/fonts"
+            cp /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf "$f"
+          fi
           ls -la "${{ steps.loc.outputs.dir }}/fonts"
-          test -f "${{ steps.loc.outputs.dir }}/fonts/DejaVuSans.ttf" || { echo "::error::fonts/DejaVuSans.ttf is missing"; exit 1; }
+      - name: Check that every source file was uploaded
+        run: |
+          case "${{ matrix.app }}" in
+            sender) req="buildozer.spec crashguard.py devinfo.py icon.png java/org/bleremote/BleClient.java java/org/bleremote/KioskHelper.java java/org/bleremote/MediaHelper.java java/org/bleremote/MediaPicker.java layers_view.py main.py mediaplan.py presplash.png protocol.py secure.py secure_flow.py sender_app.py store.py studio.py template_catalog.json templates.py transfer.py workspace_model.py zones.py" ;;
+            receiver) req="buildozer.spec commands.py crashguard.py devinfo.py icon.png java/org/bleremote/BleServer.java java/org/bleremote/KioskHelper.java java/org/bleremote/MediaHelper.java java/org/bleremote/VideoHelper.java java/org/bleremote/ZoneVideo.java layers_view.py library.py main.py mediaserver.py playback.py presplash.png protocol.py receiver_app.py secure.py secure_flow.py studio.py template_catalog.json templates.py zones.py zones_view.py" ;;
+          esac
+          missing=""
+          for f in $req; do test -f "${{ steps.loc.outputs.dir }}/$f" || missing="$missing $f"; done
+          if [ -n "$missing" ]; then
+            echo "::error::Files missing from ${{ steps.loc.outputs.dir }}:$missing"
+            echo "::error::Upload the WALIBRA zip file itself to the repository root (do not upload the folders from a phone)."
+            exit 1
+          fi
+          echo "All source files are present."
       - name: Keep the same debug signing key between builds
         uses: actions/cache@v4
         with:
